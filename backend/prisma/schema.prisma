@@ -1,0 +1,139 @@
+// =============================================================================
+// FuelEU Maritime — Prisma Schema
+// Mirrors schema.sql exactly. Field names use camelCase per Prisma convention;
+// @map() annotations declare the snake_case column names in PostgreSQL.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+enum VesselTypeEnum {
+  Container
+  BulkCarrier
+  Tanker
+  RoRo
+  Cruise
+  Ferry
+
+  @@map("vessel_type_enum")
+}
+
+enum FuelTypeEnum {
+  HFO
+  LNG
+  MGO
+  VLSFO
+  Methanol
+  Ammonia
+  Hydrogen
+
+  @@map("fuel_type_enum")
+}
+
+enum BankStatusEnum {
+  banked
+  partially_applied
+  fully_applied
+
+  @@map("bank_status_enum")
+}
+
+// ── routes ───────────────────────────────────────────────────────────────────
+
+model Route {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  routeId          String         @unique @map("route_id") @db.VarChar(20)
+  vesselType       VesselTypeEnum @map("vessel_type")
+  fuelType         FuelTypeEnum   @map("fuel_type")
+  year             Int            @db.SmallInt
+  ghgIntensity     Decimal        @map("ghg_intensity") @db.Decimal(8, 4)
+  fuelConsumption  Decimal        @map("fuel_consumption") @db.Decimal(10, 2)
+  distance         Decimal        @db.Decimal(10, 2)
+  totalEmissions   Decimal        @map("total_emissions") @db.Decimal(10, 2)
+  isBaseline       Boolean        @default(false) @map("is_baseline")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  compliance       ShipCompliance[]
+
+  @@index([year])
+  @@index([vesselType])
+  @@index([fuelType])
+  @@map("routes")
+}
+
+// ── ship_compliance ───────────────────────────────────────────────────────────
+
+model ShipCompliance {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shipId     String   @map("ship_id") @db.VarChar(100)
+  year       Int      @db.SmallInt
+  routeId    String   @map("route_id") @db.Uuid
+  cbGco2eq   Decimal  @map("cb_gco2eq") @db.Decimal(20, 4)
+  // is_surplus is a GENERATED ALWAYS column — read-only; do NOT include in writes
+  computedAt DateTime @default(now()) @map("computed_at") @db.Timestamptz
+
+  route      Route    @relation(fields: [routeId], references: [id], onDelete: Restrict)
+
+  @@unique([shipId, year], name: "shipId_year")
+  @@index([shipId])
+  @@index([year])
+  @@map("ship_compliance")
+}
+
+// ── bank_entries ──────────────────────────────────────────────────────────────
+
+model BankEntry {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shipId         String         @map("ship_id") @db.VarChar(100)
+  year           Int            @db.SmallInt
+  amountGco2eq   Decimal        @map("amount_gco2eq") @db.Decimal(20, 4)
+  appliedGco2eq  Decimal        @default(0) @map("applied_gco2eq") @db.Decimal(20, 4)
+  status         BankStatusEnum @default(banked)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([shipId, year])
+  @@map("bank_entries")
+}
+
+// ── pools ─────────────────────────────────────────────────────────────────────
+
+model Pool {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  year      Int          @db.SmallInt
+  poolSum   Decimal      @map("pool_sum") @db.Decimal(20, 4)
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  members   PoolMember[]
+
+  @@index([year])
+  @@map("pools")
+}
+
+// ── pool_members ──────────────────────────────────────────────────────────────
+
+model PoolMember {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  poolId   String  @map("pool_id") @db.Uuid
+  shipId   String  @map("ship_id") @db.VarChar(100)
+  cbBefore Decimal @map("cb_before") @db.Decimal(20, 4)
+  cbAfter  Decimal @map("cb_after") @db.Decimal(20, 4)
+  transfer Decimal @db.Decimal(20, 4)
+
+  pool     Pool    @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  @@unique([poolId, shipId])
+  @@index([poolId])
+  @@index([shipId])
+  @@map("pool_members")
+}
