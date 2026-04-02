@@ -6,11 +6,13 @@
 
 import "dotenv/config";
 import { createApp }                   from "../../adapters/inbound/http/http";
-import { PrismaRouteRepository }       from "../../adapters/outbound/postgres/RouteRepository";
-import { PrismaComplianceRepository }  from "../../adapters/outbound/postgres/ComplianceRepository";
-import { PrismaBankRepository }        from "../../adapters/outbound/postgres/BankRepository";
-import { PrismaPoolRepository }        from "../../adapters/outbound/postgres/PoolRepository";
-import { UuidIdGenerator }             from "../../adapters/outbound/postgres/UuidIdGenerator";
+import {
+  PrismaRouteRepository,
+  PrismaComplianceRepository,
+  PrismaBankRepository,
+  PrismaPoolRepository,
+  UuidIdGenerator,
+} from "../../adapters/outbound/postgres/repositories";
 import { prisma }                      from "../db/prismaClient";
 import {
   ListRoutes,
